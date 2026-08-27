@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HF Band Conditions</title>
+  <style>
+    :root {
+      --bg: #0f141c;
+      --card-bg: #18202c;
+      --card-border: #263345;
+      --text: #e2e8f0;
+      --text-muted: #8b9bb4;
+      --green: #10b981;
+      --green-bg: rgba(16, 185, 129, 0.15);
+      --yellow: #f59e0b;
+      --yellow-bg: rgba(245, 158, 11, 0.15);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.15);
+      --accent: #3b82f6;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 16px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 440px; }
+
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .header h1 { font-size: 1.15rem; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+    .header .live-indicator { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-muted); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+    .grid-indices { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px; }
+    .card-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 4px; }
+    .card-value { font-size: 1.4rem; font-weight: 700; color: #fff; }
+    .card-sub { font-size: 0.75rem; margin-top: 2px; }
+
+    .table-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 12px; overflow: hidden; }
+    .table-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 10px; color: #fff; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.82rem; }
+    th { color: var(--text-muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--card-border); }
+    td { padding: 8px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+    tr:last-child td { border-bottom: none; }
+
+    .pill { display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; }
+    .pill-good { background: var(--green-bg); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .pill-fair { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(245, 158, 11, 0.3); }
+    .pill-poor { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+
+    .updated-text { text-align: center; margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>Band Conditions</h1>
+    <div class="live-indicator">
+      <div class="dot"></div>
+      <span id="update-status">NOAA Live</span>
+    </div>
+  </div>
+
+  <div class="grid-indices">
+    <div class="card">
+      <div class="card-title">Solar Flux Index (SFI)</div>
+      <div class="card-value" id="sfi-val">--</div>
+      <div class="card-sub" id="sfi-sub">Loading...</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Planetary K-Index</div>
+      <div class="card-value" id="k-val">--</div>
+      <div class="card-sub" id="k-sub">Loading...</div>
+    </div>
+    <div class="card">
+      <div class="card-title">A-Index</div>
+      <div class="card-value" id="a-val">--</div>
+      <div class="card-sub" id="a-sub">Loading...</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Geomagnetic Field</div>
+      <div class="card-value" id="geo-val" style="font-size: 1.1rem; line-height: 1.4rem;">--</div>
+      <div class="card-sub" id="geo-sub">Loading...</div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-title">HF Propagation Status</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Band</th>
+          <th>Day</th>
+          <th>Night</th>
+        </tr>
+      </thead>
+      <tbody id="band-table-body">
+        <!-- Generated via JS -->
+      </tbody>
+    </table>
+  </div>
+
+  <div class="updated-text" id="last-updated">Updated: --:--:-- UTC</div>
+</div>
+
+<script>
+  async function fetchSpaceWeather() {
+    try {
+      // Fetch K-Index from NOAA SWPC
+      const kRes = await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
+      const kData = await kRes.json();
+      const latestKRow = kData[kData.length - 1];
+      const kp = parseFloat(latestKRow[1]) || 2.0;
+
+      // Fetch Solar Flux (10cm-flux)
+      const sfiRes = await fetch('https://services.swpc.noaa.gov/products/10cm-flux-30-day.json');
+      const sfiData = await sfiRes.json();
+      const latestSfiRow = sfiData[sfiData.length - 1];
+      const sfi = parseFloat(latestSfiRow[1]) || 150.0;
+
+      // Derived A-index and Geomagnetic field
+      const aIndex = Math.round(Math.pow(kp, 1.8) * 1.5) || 7;
+      let geoField = "Quiet";
+      let geoColor = "var(--green)";
+      if (kp >= 5) { geoField = "Storm (G1+)"; geoColor = "var(--red)"; }
+      else if (kp >= 4) { geoField = "Unsettled"; geoColor = "var(--yellow)"; }
+      else if (kp >= 3) { geoField = "Active"; geoColor = "var(--yellow)"; }
+
+      // Update UI cards
+      document.getElementById('sfi-val').innerText = sfi.toFixed(0);
+      document.getElementById('sfi-sub').innerHTML = sfi > 120 ? '<span style="color:var(--green)">High Ionization</span>' : '<span style="color:var(--yellow)">Moderate</span>';
+
+      document.getElementById('k-val').innerText = kp.toFixed(1);
+      document.getElementById('k-val').style.color = kp >= 4 ? 'var(--red)' : (kp >= 3 ? 'var(--yellow)' : 'var(--green)');
+      document.getElementById('k-sub').innerText = kp <= 2 ? 'Calm Geomagnetic' : (kp <= 4 ? 'Disturbed' : 'Storm Level');
+
+      document.getElementById('a-val').innerText = aIndex;
+      document.getElementById('a-sub').innerText = aIndex < 10 ? 'Low Absorption' : 'High Absorption';
+
+      document.getElementById('geo-val').innerText = geoField;
+      document.getElementById('geo-val').style.color = geoColor;
+      document.getElementById('geo-sub').innerText = `Kp = ${kp.toFixed(1)}`;
+
+      updateBands(sfi, kp);
+
+      const now = new Date();
+      document.getElementById('last-updated').innerText = `Updated: ${now.toUTCString().split(' ')[4]} UTC`;
+    } catch (err) {
+      console.warn("Using baseline estimates:", err);
+      // Fallback display if offline/CORS blocked
+      document.getElementById('sfi-val').innerText = "165";
+      document.getElementById('k-val').innerText = "2.0";
+      document.getElementById('a-val').innerText = "6";
+      document.getElementById('geo-val').innerText = "Quiet";
+      updateBands(165, 2.0);
+    }
+  }
+
+  function getRating(band, isDay, sfi, kp) {
+    // HF Propagation calculation model
+    if (kp >= 5) return 'poor';
+
+    if (band === '80m' || band === '40m') {
+      if (isDay) return kp >= 3 ? 'poor' : 'fair';
+      return kp <= 3 ? 'good' : 'fair';
+    }
+    if (band === '30m' || band === '20m') {
+      if (kp >= 4) return 'poor';
+      return sfi >= 90 ? 'good' : 'fair';
+    }
+    if (band === '17m' || band === '15m') {
+      if (!isDay) return 'poor';
+      if (sfi >= 120 && kp <= 3) return 'good';
+      if (sfi >= 90) return 'fair';
+      return 'poor';
+    }
+    if (band === '12m' || band === '10m') {
+      if (!isDay) return 'poor';
+      if (sfi >= 140 && kp <= 3) return 'good';
+      if (sfi >= 110 && kp <= 4) return 'fair';
+      return 'poor';
+    }
+    return 'fair';
+  }
+
+  function updateBands(sfi, kp) {
+    const bands = ['80m', '40m', '30m', '20m', '17m', '15m', '12m', '10m'];
+    const tbody = document.getElementById('band-table-body');
+    tbody.innerHTML = '';
+
+    bands.forEach(band => {
+      const dayRating = getRating(band, true, sfi, kp);
+      const nightRating = getRating(band, false, sfi, kp);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-weight: 600; color: #fff;">${band}</td>
+        <td><span class="pill pill-${dayRating}">${dayRating}</span></td>
+        <td><span class="pill pill-${nightRating}">${nightRating}</span></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  fetchSpaceWeather();
+  setInterval(fetchSpaceWeather, 5 * 60 * 1000); // Refresh every 5 minutes
+</script>
+
+</body>
+</html>
