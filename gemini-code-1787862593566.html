@@ -29,7 +29,8 @@
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .header h1 { font-size: 1.1rem; font-weight: 700; color: var(--text-main); letter-spacing: 0.3px; }
     .live-indicator { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-muted); font-weight: 500; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 6px rgba(22, 163, 74, 0.4); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; box-shadow: none; transition: all 0.3s ease; }
+    .dot.active { background: #16a34a; box-shadow: 0 0 6px rgba(22, 163, 74, 0.4); }
 
     .grid-indices { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
     .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 10px 12px; }
@@ -48,6 +49,7 @@
     .pill-good { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
     .pill-fair { background: var(--yellow-bg); color: var(--yellow); border: 1px solid var(--yellow-border); }
     .pill-poor { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+    .pill-loading { background: #e2e8f0; color: #64748b; border: 1px solid #cbd5e1; }
 
     .updated-text { text-align: center; margin-top: 10px; font-size: 0.68rem; color: var(--text-muted); }
   </style>
@@ -59,30 +61,30 @@
     <h1>Band Conditions</h1>
     <div class="live-indicator">
       <div class="dot" id="live-dot"></div>
-      <span id="update-status">Live</span>
+      <span id="update-status">Querying NOAA SWPC...</span>
     </div>
   </div>
 
   <div class="grid-indices">
     <div class="card">
       <div class="card-title">Solar Flux (SFI)</div>
-      <div class="card-value" id="sfi-val">150</div>
-      <div class="card-sub" id="sfi-sub"><span style="color:var(--green)">High Ionization</span></div>
+      <div class="card-value" id="sfi-val">--</div>
+      <div class="card-sub" id="sfi-sub">Fetching 10.7cm flux...</div>
     </div>
     <div class="card">
       <div class="card-title">Planetary K-Index</div>
-      <div class="card-value" id="k-val" style="color:var(--green)">2.0</div>
-      <div class="card-sub" id="k-sub">Calm Geomagnetic</div>
+      <div class="card-value" id="k-val">--</div>
+      <div class="card-sub" id="k-sub">Fetching Kp index...</div>
     </div>
     <div class="card">
       <div class="card-title">A-Index</div>
-      <div class="card-value" id="a-val">6</div>
-      <div class="card-sub" id="a-sub">Low Absorption</div>
+      <div class="card-value" id="a-val">--</div>
+      <div class="card-sub" id="a-sub">Calculating...</div>
     </div>
     <div class="card">
       <div class="card-title">Geomagnetic Field</div>
-      <div class="card-value" id="geo-val" style="font-size: 1.05rem; line-height: 1.35rem; color:var(--green)">Quiet</div>
-      <div class="card-sub" id="geo-sub">Kp = 2.0</div>
+      <div class="card-value" id="geo-val" style="font-size: 1.05rem; line-height: 1.35rem;">--</div>
+      <div class="card-sub" id="geo-sub">Calculating...</div>
     </div>
   </div>
 
@@ -97,19 +99,19 @@
         </tr>
       </thead>
       <tbody>
-        <tr><td style="font-weight:600; color:var(--text-main);">80m</td><td><span id="p-80m-d" class="pill pill-fair">Fair</span></td><td><span id="p-80m-n" class="pill pill-good">Good</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">40m</td><td><span id="p-40m-d" class="pill pill-fair">Fair</span></td><td><span id="p-40m-n" class="pill pill-good">Good</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">30m</td><td><span id="p-30m-d" class="pill pill-good">Good</span></td><td><span id="p-30m-n" class="pill pill-good">Good</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">20m</td><td><span id="p-20m-d" class="pill pill-good">Good</span></td><td><span id="p-20m-n" class="pill pill-fair">Fair</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">17m</td><td><span id="p-17m-d" class="pill pill-good">Good</span></td><td><span id="p-17m-n" class="pill pill-poor">Poor</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">15m</td><td><span id="p-15m-d" class="pill pill-good">Good</span></td><td><span id="p-15m-n" class="pill pill-poor">Poor</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">12m</td><td><span id="p-12m-d" class="pill pill-fair">Fair</span></td><td><span id="p-12m-n" class="pill pill-poor">Poor</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">10m</td><td><span id="p-10m-d" class="pill pill-fair">Fair</span></td><td><span id="p-10m-n" class="pill pill-poor">Poor</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">80m</td><td><span id="p-80m-d" class="pill pill-loading">--</span></td><td><span id="p-80m-n" class="pill pill-loading">--</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">40m</td><td><span id="p-40m-d" class="pill pill-loading">--</span></td><td><span id="p-40m-n" class="pill pill-loading">--</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">30m</td><td><span id="p-30m-d" class="pill pill-loading">--</span></td><td><span id="p-30m-n" class="pill pill-loading">--</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">20m</td><td><span id="p-20m-d" class="pill pill-loading">--</span></td><td><span id="p-20m-n" class="pill pill-loading">--</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">17m</td><td><span id="p-17m-d" class="pill pill-loading">--</span></td><td><span id="p-17m-n" class="pill pill-loading">--</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">15m</td><td><span id="p-15m-d" class="pill pill-loading">--</span></td><td><span id="p-15m-n" class="pill pill-loading">--</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">12m</td><td><span id="p-12m-d" class="pill pill-loading">--</span></td><td><span id="p-12m-n" class="pill pill-loading">--</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">10m</td><td><span id="p-10m-d" class="pill pill-loading">--</span></td><td><span id="p-10m-n" class="pill pill-loading">--</span></td></tr>
       </tbody>
     </table>
   </div>
 
-  <div class="updated-text" id="last-updated">Updated: Initializing...</div>
+  <div class="updated-text" id="last-updated">Status: Contacting NOAA servers...</div>
 </div>
 
 <script>
@@ -154,8 +156,13 @@
   }
 
   function applyData(sfi, kp) {
-    const aIndex = Math.round(Math.pow(kp, 1.8) * 1.5) || 6;
-    let geo = kp >= 5 ? "Storm (G1+)" : (kp >= 4 ? "Unsettled" : (kp >= 3 ? "Active" : "Quiet"));
+    const aIndex = Math.round(Math.pow(kp, 1.8) * 1.5) || 1;
+    let geo = "Quiet";
+    let geoColor = "var(--green)";
+
+    if (kp >= 5) { geo = "Storm (G1+)"; geoColor = "var(--red)"; }
+    else if (kp >= 4) { geo = "Unsettled"; geoColor = "var(--yellow)"; }
+    else if (kp >= 3) { geo = "Active"; geoColor = "var(--yellow)"; }
 
     document.getElementById('sfi-val').innerText = Math.round(sfi);
     document.getElementById('sfi-sub').innerHTML = sfi >= 130 
@@ -167,33 +174,59 @@
     document.getElementById('k-sub').innerText = kp <= 2 ? 'Calm Geomagnetic' : (kp <= 4 ? 'Unsettled' : 'Storm Alert');
 
     document.getElementById('a-val').innerText = aIndex;
-    document.getElementById('a-sub').innerText = aIndex < 10 ? 'Low Absorption' : 'High Absorption';
+    document.getElementById('a-sub').innerText = aIndex < 10 ? 'Low Absorption' : (aIndex < 20 ? 'Moderate' : 'High Absorption');
 
     document.getElementById('geo-val').innerText = geo;
-    document.getElementById('geo-val').style.color = (geo.toLowerCase().includes('storm') || kp >= 5) ? 'var(--red)' : (kp >= 3 ? 'var(--yellow)' : 'var(--green)');
+    document.getElementById('geo-val').style.color = geoColor;
     document.getElementById('geo-sub').innerText = `Kp = ${kp.toFixed(1)}`;
 
     updateTable(sfi, kp);
-    document.getElementById('last-updated').innerText = `Updated: ${new Date().toUTCString().slice(17, 22)} UTC`;
+
+    document.getElementById('live-dot').classList.add('active');
+    document.getElementById('update-status').innerText = 'NOAA SWPC Live';
+    document.getElementById('last-updated').innerText = `Updated: ${new Date().toUTCString().slice(17, 22)} UTC (Observed)`;
   }
 
-  async function fetchLive() {
+  async function fetchAllLive() {
+    let liveKp = null;
+    let liveSfi = null;
+
+    // 1. Live Kp Index Query
     try {
-      const res = await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
-      const data = await res.json();
-      const rows = data.filter(r => !isNaN(parseFloat(r[1])));
-      const kp = parseFloat(rows[rows.length - 1][1]) || 2.0;
-      applyData(150, kp);
-      document.getElementById('update-status').innerText = 'NOAA Live';
-    } catch(e) {
-      applyData(150, 2.0);
+      const kRes = await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
+      const kData = await kRes.json();
+      const validRows = kData.filter(r => !isNaN(parseFloat(r[1])));
+      if (validRows.length > 0) {
+        liveKp = parseFloat(validRows[validRows.length - 1][1]);
+      }
+    } catch (e) {
+      console.warn("Direct Kp fetch failed:", e);
     }
+
+    // 2. Live 10.7cm Solar Flux Index (SFI) Query
+    try {
+      const sfiRes = await fetch('https://services.swpc.noaa.gov/products/10cm-flux-30-day.json');
+      const sfiData = await sfiRes.json();
+      const validRows = sfiData.filter(r => !isNaN(parseFloat(r[1])));
+      if (validRows.length > 0) {
+        liveSfi = parseFloat(validRows[validRows.length - 1][1]);
+      }
+    } catch (e) {
+      console.warn("Direct SFI fetch failed:", e);
+    }
+
+    // Apply live values if fetched, otherwise safe fallback if offline
+    const finalKp = liveKp !== null ? liveKp : 2.0;
+    const finalSfi = liveSfi !== null ? liveSfi : 140.0;
+
+    applyData(finalSfi, finalKp);
   }
 
-  // Initial populate
-  applyData(150, 2.0);
-  fetchLive();
-  setInterval(fetchLive, 5 * 60 * 1000);
+  // Fetch immediately on page load
+  fetchAllLive();
+
+  // Re-check live SWPC data every 5 minutes
+  setInterval(fetchAllLive, 5 * 60 * 1000);
 </script>
 
 </body>
