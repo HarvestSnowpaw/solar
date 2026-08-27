@@ -104,38 +104,79 @@
 </div>
 
 <script>
+  async function fetchWithFallback(url) {
+    // 1. Try direct fetch
+    try {
+      const res = await fetch(url, { cache: 'no-cache' });
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn("Direct fetch blocked, trying proxy for:", url);
+    }
+
+    // 2. Try proxy if direct fetch is blocked by CORS/browser
+    try {
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxyUrl);
+      if (res.ok) return await res.json();
+    } catch (e) {
+      console.warn("Proxy 1 failed, trying fallback proxy:", e);
+    }
+
+    // 3. Secondary proxy fallback
+    const proxyUrl2 = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`;
+    const res = await fetch(proxyUrl2);
+    return await res.json();
+  }
+
   async function fetchSpaceWeather() {
     try {
-      // Fetch K-Index from NOAA SWPC
-      const kRes = await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
-      const kData = await kRes.json();
-      const latestKRow = kData[kData.length - 1];
-      const kp = parseFloat(latestKRow[1]) || 2.0;
+      // 1. Fetch Planetary K-index (NOAA 1-minute / 3-hour feeds)
+      let kp = 2.0;
+      try {
+        const kData = await fetchWithFallback('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
+        if (Array.isArray(kData) && kData.length > 1) {
+          // Exclude header row if present
+          const rows = kData.filter(r => !isNaN(parseFloat(r[1])));
+          const latest = rows[rows.length - 1];
+          kp = parseFloat(latest[1]);
+        }
+      } catch (err) {
+        console.warn("Kp fetch failed:", err);
+      }
 
-      // Fetch Solar Flux (10cm-flux)
-      const sfiRes = await fetch('https://services.swpc.noaa.gov/products/10cm-flux-30-day.json');
-      const sfiData = await sfiRes.json();
-      const latestSfiRow = sfiData[sfiData.length - 1];
-      const sfi = parseFloat(latestSfiRow[1]) || 150.0;
+      // 2. Fetch 10.7cm Solar Flux Index (SFI)
+      let sfi = 150.0;
+      try {
+        const sfiData = await fetchWithFallback('https://services.swpc.noaa.gov/products/10cm-flux-30-day.json');
+        if (Array.isArray(sfiData) && sfiData.length > 1) {
+          const rows = sfiData.filter(r => !isNaN(parseFloat(r[1])));
+          const latest = rows[rows.length - 1];
+          sfi = parseFloat(latest[1]);
+        }
+      } catch (err) {
+        console.warn("SFI fetch failed:", err);
+      }
 
-      // Derived A-index and Geomagnetic field
-      const aIndex = Math.round(Math.pow(kp, 1.8) * 1.5) || 7;
+      // 3. Derived Indices
+      const aIndex = Math.round(Math.pow(kp, 1.8) * 1.5) || 6;
       let geoField = "Quiet";
       let geoColor = "var(--green)";
       if (kp >= 5) { geoField = "Storm (G1+)"; geoColor = "var(--red)"; }
       else if (kp >= 4) { geoField = "Unsettled"; geoColor = "var(--yellow)"; }
       else if (kp >= 3) { geoField = "Active"; geoColor = "var(--yellow)"; }
 
-      // Update UI cards
-      document.getElementById('sfi-val').innerText = sfi.toFixed(0);
-      document.getElementById('sfi-sub').innerHTML = sfi > 120 ? '<span style="color:var(--green)">High Ionization</span>' : '<span style="color:var(--yellow)">Moderate</span>';
+      // 4. Update DOM Elements
+      document.getElementById('sfi-val').innerText = Math.round(sfi);
+      document.getElementById('sfi-sub').innerHTML = sfi >= 130 
+        ? '<span style="color:var(--green)">High Ionization</span>' 
+        : (sfi >= 90 ? '<span style="color:var(--yellow)">Moderate</span>' : '<span style="color:var(--red)">Low</span>');
 
       document.getElementById('k-val').innerText = kp.toFixed(1);
       document.getElementById('k-val').style.color = kp >= 4 ? 'var(--red)' : (kp >= 3 ? 'var(--yellow)' : 'var(--green)');
       document.getElementById('k-sub').innerText = kp <= 2 ? 'Calm Geomagnetic' : (kp <= 4 ? 'Disturbed' : 'Storm Level');
 
       document.getElementById('a-val').innerText = aIndex;
-      document.getElementById('a-sub').innerText = aIndex < 10 ? 'Low Absorption' : 'High Absorption';
+      document.getElementById('a-sub').innerText = aIndex < 10 ? 'Low Absorption' : (aIndex < 20 ? 'Moderate' : 'High Absorption');
 
       document.getElementById('geo-val').innerText = geoField;
       document.getElementById('geo-val').style.color = geoColor;
@@ -145,19 +186,14 @@
 
       const now = new Date();
       document.getElementById('last-updated').innerText = `Updated: ${now.toUTCString().split(' ')[4]} UTC`;
+      document.getElementById('update-status').innerText = 'Live';
     } catch (err) {
-      console.warn("Using baseline estimates:", err);
-      // Fallback display if offline/CORS blocked
-      document.getElementById('sfi-val').innerText = "165";
-      document.getElementById('k-val').innerText = "2.0";
-      document.getElementById('a-val').innerText = "6";
-      document.getElementById('geo-val').innerText = "Quiet";
-      updateBands(165, 2.0);
+      console.error("General parse error:", err);
+      document.getElementById('update-status').innerText = 'Fallback';
     }
   }
 
   function getRating(band, isDay, sfi, kp) {
-    // HF Propagation calculation model
     if (kp >= 5) return 'poor';
 
     if (band === '80m' || band === '40m') {
@@ -203,8 +239,8 @@
   }
 
   fetchSpaceWeather();
-  setInterval(fetchSpaceWeather, 5 * 60 * 1000); // Refresh every 5 minutes
+  setInterval(fetchSpaceWeather, 5 * 60 * 1000);
 </script>
-
+  
 </body>
 </html>
