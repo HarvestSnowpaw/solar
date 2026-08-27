@@ -2,7 +2,7 @@ name: Update NOAA Solar Data
 
 on:
   schedule:
-    - cron: '*/30 * * * *'  # Runs automatically every 30 minutes
+    - cron: '*/60 * * * *'  # Runs automatically every 30 minutes
   workflow_dispatch:        # Manual run button
 
 permissions:
