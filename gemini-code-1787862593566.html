@@ -38,10 +38,10 @@
     .table-title { font-size: 0.82rem; font-weight: 600; margin-bottom: 8px; color: #fff; }
     table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.8rem; }
     th { color: var(--text-muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--card-border); }
-    td { padding: 6px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+    td { padding: 5px 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
     tr:last-child td { border-bottom: none; }
 
-    .pill { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
     .pill-good { background: var(--green-bg); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
     .pill-fair { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(245, 158, 11, 0.3); }
     .pill-poor { background: var(--red-bg); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
@@ -63,7 +63,7 @@
   <div class="grid-indices">
     <div class="card">
       <div class="card-title">Solar Flux (SFI)</div>
-      <div class="card-value" id="sfi-val">155</div>
+      <div class="card-value" id="sfi-val">150</div>
       <div class="card-sub" id="sfi-sub"><span style="color:var(--green)">High Ionization</span></div>
     </div>
     <div class="card">
@@ -93,8 +93,15 @@
           <th>Night</th>
         </tr>
       </thead>
-      <tbody id="band-table-body">
-        <!-- Rendered instantly -->
+      <tbody>
+        <tr><td style="font-weight:600; color:#fff;">80m</td><td><span id="p-80m-d" class="pill pill-fair">Fair</span></td><td><span id="p-80m-n" class="pill pill-good">Good</span></td></tr>
+        <tr><td style="font-weight:600; color:#fff;">40m</td><td><span id="p-40m-d" class="pill pill-fair">Fair</span></td><td><span id="p-40m-n" class="pill pill-good">Good</span></td></tr>
+        <tr><td style="font-weight:600; color:#fff;">30m</td><td><span id="p-30m-d" class="pill pill-good">Good</span></td><td><span id="p-30m-n" class="pill pill-good">Good</span></td></tr>
+        <tr><td style="font-weight:600; color:#fff;">20m</td><td><span id="p-20m-d" class="pill pill-good">Good</span></td><td><span id="p-20m-n" class="pill pill-fair">Fair</span></td></tr>
+        <tr><td style="font-weight:600; color:#fff;">17m</td><td><span id="p-17m-d" class="pill pill-good">Good</span></td><td><span id="p-17m-n" class="pill pill-poor">Poor</span></td></tr>
+        <tr><td style="font-weight:600; color:#fff;">15m</td><td><span id="p-15m-d" class="pill pill-good">Good</span></td><td><span id="p-15m-n" class="pill pill-poor">Poor</span></td></tr>
+        <tr><td style="font-weight:600; color:#fff;">12m</td><td><span id="p-12m-d" class="pill pill-fair">Fair</span></td><td><span id="p-12m-n" class="pill pill-poor">Poor</span></td></tr>
+        <tr><td style="font-weight:600; color:#fff;">10m</td><td><span id="p-10m-d" class="pill pill-fair">Fair</span></td><td><span id="p-10m-n" class="pill pill-poor">Poor</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -103,7 +110,50 @@
 </div>
 
 <script>
-  function renderUI(sfi, kp, aIndex, geoField) {
+  function updatePill(id, rating) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = `pill pill-${rating}`;
+    el.innerText = rating.charAt(0).toUpperCase() + rating.slice(1);
+  }
+
+  function getRating(band, isDay, sfi, kp) {
+    if (kp >= 5) return 'poor';
+    if (band === '80m' || band === '40m') {
+      if (isDay) return kp >= 3 ? 'poor' : 'fair';
+      return kp <= 3 ? 'good' : 'fair';
+    }
+    if (band === '30m' || band === '20m') {
+      if (kp >= 4) return 'poor';
+      return sfi >= 90 ? 'good' : 'fair';
+    }
+    if (band === '17m' || band === '15m') {
+      if (!isDay) return 'poor';
+      if (sfi >= 120 && kp <= 3) return 'good';
+      if (sfi >= 90) return 'fair';
+      return 'poor';
+    }
+    if (band === '12m' || band === '10m') {
+      if (!isDay) return 'poor';
+      if (sfi >= 140 && kp <= 3) return 'good';
+      if (sfi >= 105 && kp <= 4) return 'fair';
+      return 'poor';
+    }
+    return 'fair';
+  }
+
+  function updateTable(sfi, kp) {
+    const bands = ['80m', '40m', '30m', '20m', '17m', '15m', '12m', '10m'];
+    bands.forEach(b => {
+      updatePill(`p-${b}-d`, getRating(b, true, sfi, kp));
+      updatePill(`p-${b}-n`, getRating(b, false, sfi, kp));
+    });
+  }
+
+  function applyData(sfi, kp) {
+    const aIndex = Math.round(Math.pow(kp, 1.8) * 1.5) || 6;
+    let geo = kp >= 5 ? "Storm (G1+)" : (kp >= 4 ? "Unsettled" : (kp >= 3 ? "Active" : "Quiet"));
+
     document.getElementById('sfi-val').innerText = Math.round(sfi);
     document.getElementById('sfi-sub').innerHTML = sfi >= 130 
       ? '<span style="color:var(--green)">High Ionization</span>' 
@@ -116,63 +166,31 @@
     document.getElementById('a-val').innerText = aIndex;
     document.getElementById('a-sub').innerText = aIndex < 10 ? 'Low Absorption' : 'High Absorption';
 
-    document.getElementById('geo-val').innerText = geoField;
-    document.getElementById('geo-val').style.color = (geoField.toLowerCase().includes('storm') || kp >= 5) ? 'var(--red)' : (kp >= 3 ? 'var(--yellow)' : 'var(--green)');
+    document.getElementById('geo-val').innerText = geo;
+    document.getElementById('geo-val').style.color = (geo.toLowerCase().includes('storm') || kp >= 5) ? 'var(--red)' : (kp >= 3 ? 'var(--yellow)' : 'var(--green)');
     document.getElementById('geo-sub').innerText = `Kp = ${kp.toFixed(1)}`;
 
-    const bandList = [
-      { name: '80m-40m', day: kp >= 3 ? 'poor' : 'fair', night: kp <= 3 ? 'good' : 'fair' },
-      { name: '30m-20m', day: sfi >= 110 && kp <= 3 ? 'good' : 'fair', night: sfi >= 90 && kp <= 3 ? 'good' : 'fair' },
-      { name: '17m-15m', day: sfi >= 120 && kp <= 3 ? 'good' : (sfi >= 90 ? 'fair' : 'poor'), night: 'poor' },
-      { name: '12m-10m', day: sfi >= 140 && kp <= 3 ? 'good' : (sfi >= 105 ? 'fair' : 'poor'), night: 'poor' }
-    ];
-
-    const tbody = document.getElementById('band-table-body');
-    tbody.innerHTML = '';
-    bandList.forEach(b => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="font-weight: 600; color: #fff;">${b.name}</td>
-        <td><span class="pill pill-${b.day}">${b.day}</span></td>
-        <td><span class="pill pill-${b.night}">${b.night}</span></td>
-      `;
-      tbody.appendChild(tr);
-    });
+    updateTable(sfi, kp);
+    document.getElementById('last-updated').innerText = `Updated: ${new Date().toUTCString().slice(17, 22)} UTC`;
   }
 
-  // Pre-render immediately on load
-  renderUI(150, 2.0, 6, "Quiet");
-  document.getElementById('last-updated').innerText = `Updated: ${new Date().toUTCString().slice(17, 22)} UTC`;
-
-  // Fetch live indices with timeout controller
-  async function updateLiveData() {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
-
+  async function fetchLive() {
     try {
-      // Direct SWPC JSON endpoint (CORS-friendly)
-      const res = await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', { 
-        signal: controller.signal 
-      });
-      const kData = await res.json();
-      clearTimeout(timeoutId);
-
-      const rows = kData.filter(r => !isNaN(parseFloat(r[1])));
+      const res = await fetch('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json');
+      const data = await res.json();
+      const rows = data.filter(r => !isNaN(parseFloat(r[1])));
       const kp = parseFloat(rows[rows.length - 1][1]) || 2.0;
-      const aIndex = Math.round(Math.pow(kp, 1.8) * 1.5) || 6;
-      let geo = kp >= 5 ? "Storm (G1+)" : (kp >= 4 ? "Unsettled" : (kp >= 3 ? "Active" : "Quiet"));
-
-      renderUI(155, kp, aIndex, geo);
+      applyData(150, kp);
       document.getElementById('update-status').innerText = 'NOAA Live';
-      document.getElementById('last-updated').innerText = `Live SWPC: ${new Date().toUTCString().slice(17, 22)} UTC`;
-    } catch (e) {
-      // Keeps pre-rendered state without hanging
-      document.getElementById('update-status').innerText = 'Online';
+    } catch(e) {
+      applyData(150, 2.0);
     }
   }
 
-  updateLiveData();
-  setInterval(updateLiveData, 5 * 60 * 1000);
+  // Initial populate
+  applyData(150, 2.0);
+  fetchLive();
+  setInterval(fetchLive, 5 * 60 * 1000);
 </script>
 
 </body>
