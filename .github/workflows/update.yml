@@ -3,7 +3,7 @@ name: Update NOAA Solar Data
 on:
   schedule:
     # Runs 18 minutes after every 3-hour interval UTC:
-    - cron: '18 0,3,6,9,12,15,18,21 * * *'
+    - cron: '18 0,3,6,9,12,15,17,18,20,21,23 * * *'
   workflow_dispatch:
 
 permissions:
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Fetch NOAA Data and Generate index.html
         run: |
