@@ -66,23 +66,23 @@
   <div class="grid-indices">
     <div class="card">
       <div class="card-title">Solar Flux (SFI)</div>
-      <div class="card-value">145</div>
-      <div class="card-sub"><span style="color:#15803d">High Ionization</span></div>
+      <div class="card-value" id="sfi-val">--</div>
+      <div class="card-sub" id="sfi-sub">Loading...</div>
     </div>
     <div class="card">
       <div class="card-title">Planetary K-Index</div>
-      <div class="card-value" style="color:#15803d">2.0</div>
-      <div class="card-sub">Calm Geomagnetic</div>
+      <div class="card-value" id="k-val">--</div>
+      <div class="card-sub" id="k-sub">Loading...</div>
     </div>
     <div class="card">
       <div class="card-title">A-Index</div>
-      <div class="card-value">5</div>
-      <div class="card-sub">Low Absorption</div>
+      <div class="card-value" id="a-val">--</div>
+      <div class="card-sub" id="a-sub">Loading...</div>
     </div>
     <div class="card">
       <div class="card-title">Geomagnetic Field</div>
-      <div class="card-value" style="font-size: 1.05rem; line-height: 1.35rem; color:#15803d">Quiet</div>
-      <div class="card-sub">Kp = 2.0</div>
+      <div class="card-value" id="geo-val" style="font-size: 1.05rem; line-height: 1.35rem;">--</div>
+      <div class="card-sub" id="geo-sub">Loading...</div>
     </div>
   </div>
 
@@ -97,20 +97,70 @@
         </tr>
       </thead>
       <tbody>
-                <tr><td style="font-weight:600; color:var(--text-main);">80m</td><td><span class="pill pill-fair">Fair</span></td><td><span class="pill pill-good">Good</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">40m</td><td><span class="pill pill-fair">Fair</span></td><td><span class="pill pill-good">Good</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">30m</td><td><span class="pill pill-good">Good</span></td><td><span class="pill pill-good">Good</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">20m</td><td><span class="pill pill-good">Good</span></td><td><span class="pill pill-good">Good</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">17m</td><td><span class="pill pill-good">Good</span></td><td><span class="pill pill-poor">Poor</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">15m</td><td><span class="pill pill-good">Good</span></td><td><span class="pill pill-poor">Poor</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">12m</td><td><span class="pill pill-good">Good</span></td><td><span class="pill pill-poor">Poor</span></td></tr>
-        <tr><td style="font-weight:600; color:var(--text-main);">10m</td><td><span class="pill pill-good">Good</span></td><td><span class="pill pill-poor">Poor</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">80m-40m</td><td><span id="p-80m-d" class="pill pill-fair">Fair</span></td><td><span id="p-80m-n" class="pill pill-good">Good</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">30m-20m</td><td><span id="p-30m-d" class="pill pill-good">Good</span></td><td><span id="p-30m-n" class="pill pill-good">Good</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">17m-15m</td><td><span id="p-17m-d" class="pill pill-good">Good</span></td><td><span id="p-17m-n" class="pill pill-poor">Poor</span></td></tr>
+        <tr><td style="font-weight:600; color:var(--text-main);">12m-10m</td><td><span id="p-10m-d" class="pill pill-fair">Fair</span></td><td><span id="p-10m-n" class="pill pill-poor">Poor</span></td></tr>
       </tbody>
     </table>
   </div>
 
-  <div class="updated-text">Updated: 22:48 UTC (NOAA SWPC)</div>
+  <div class="updated-text" id="last-updated">Connecting to NOAA / N0NBH...</div>
 </div>
+
+<script>
+  function setPill(id, text) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const rating = (text || 'fair').toLowerCase();
+    el.className = `pill pill-${rating}`;
+    el.innerText = rating.charAt(0).toUpperCase() + rating.slice(1);
+  }
+
+  // JSONP callback function that N0NBH script calls automatically
+  window.hamqsl_callback = function(data) {
+    try {
+      const sfi = parseInt(data.solarflux) || 140;
+      const k = parseFloat(data.kindex) || 2.0;
+      const a = parseInt(data.aindex) || 5;
+      const geo = data.geomagfield || 'Quiet';
+
+      document.getElementById('sfi-val').innerText = sfi;
+      document.getElementById('sfi-sub').innerHTML = sfi >= 130 
+        ? '<span style="color:var(--green)">High Ionization</span>' 
+        : (sfi >= 90 ? '<span style="color:var(--yellow)">Moderate</span>' : '<span style="color:var(--red)">Low</span>');
+
+      document.getElementById('k-val').innerText = k.toFixed(1);
+      document.getElementById('k-val').style.color = k >= 4 ? 'var(--red)' : (k >= 3 ? 'var(--yellow)' : 'var(--green)');
+      document.getElementById('k-sub').innerText = k <= 2 ? 'Calm Geomagnetic' : (k <= 4 ? 'Unsettled' : 'Storm Alert');
+
+      document.getElementById('a-val').innerText = a;
+      document.getElementById('a-sub').innerText = a < 10 ? 'Low Absorption' : 'High Absorption';
+
+      document.getElementById('geo-val').innerText = geo;
+      document.getElementById('geo-val').style.color = (geo.toLowerCase().includes('storm') || k >= 5) ? 'var(--red)' : (k >= 3 ? 'var(--yellow)' : 'var(--green)');
+      document.getElementById('geo-sub').innerText = `Kp = ${k.toFixed(1)}`;
+
+      if (data.calculatedconditions && data.calculatedconditions.band) {
+        data.calculatedconditions.band.forEach(b => {
+          if (b.name === '80m-40m') { setPill('p-80m-d', b.day); setPill('p-80m-n', b.night); }
+          if (b.name === '30m-20m') { setPill('p-30m-d', b.day); setPill('p-30m-n', b.night); }
+          if (b.name === '17m-15m') { setPill('p-17m-d', b.day); setPill('p-17m-n', b.night); }
+          if (b.name === '12m-10m') { setPill('p-10m-d', b.day); setPill('p-10m-n', b.night); }
+        });
+      }
+
+      document.getElementById('last-updated').innerText = `Updated: ${data.updated || new Date().toUTCString().slice(17, 22) + ' UTC'}`;
+    } catch(err) {
+      console.error(err);
+    }
+  };
+
+  // Load via JSONP script tag (bypasses all iframe security/CORS restrictions)
+  const script = document.createElement('script');
+  script.src = 'https://www.hamqsl.com/solarjson.php?callback=hamqsl_callback';
+  document.body.appendChild(script);
+</script>
 
 </body>
 </html>
