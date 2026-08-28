@@ -4,11 +4,7 @@ on:
   schedule:
     # Runs 15 minutes after every 3-hour Kp interval:
     # 00:15, 03:15, 06:15, 09:15, 12:15, 15:15, 18:15, 21:15 UTC
-    - cron: '15 */3 * * *'
-
-    # Runs 15 minutes after the remaining Penticton SFI updates:
-    # 17:15, 20:15, 23:15 UTC
-    - cron: '15 17,20,23 * * *'
+    - cron: '18 0,3,6,9,12,15,17,18,20,21,23 * * *'
     
   workflow_dispatch:        # Manual run button
 
