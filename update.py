@@ -4,32 +4,45 @@ import datetime
 import sys
 
 # 1. Fetch Planetary K-Index from NOAA SWPC
-kp = 2.0
+kp = None
 try:
     url = "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json"
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=10) as response:
-        data = json.loads(response.read().decode("utf-8"))
-        # Strip header row, parse latest numerical Kp
-        rows = [r for r in data if len(r) > 1 and str(r[1]).replace(".", "", 1).isdigit()]
-        if rows:
-            kp = float(rows[-1][1])
+    req = urllib.request.Request(url, headers={"User-Agent": "WRL-QRZ-Widget/1.0"})
+    with urllib.request.urlopen(req, timeout=12) as response:
+        raw_data = json.loads(response.read().decode("utf-8"))
+        # Header is ["time_tag", "Kp", "a_running", "station_count"]
+        # Find all valid numeric rows
+        valid_rows = [r for r in raw_data if len(r) > 1 and r[1] not in ["Kp", "kp", None, ""]]
+        if valid_rows:
+            latest_k_entry = valid_rows[-1]
+            kp = float(latest_k_entry[1])
+            print(f"[NOAA LIVE] Observed Kp: {kp} at {latest_k_entry[0]}")
 except Exception as e:
-    print(f"Kp fetch warning: {e}", file=sys.stderr)
+    print(f"[ERROR] Kp fetch failed: {e}", file=sys.stderr)
+
+if kp is None:
+    kp = 2.0
+    print("[WARN] Using fallback Kp = 2.0")
 
 # 2. Fetch 10.7cm Solar Flux Index (SFI) from NOAA SWPC
-sfi = 145
+sfi = None
 try:
     url = "https://services.swpc.noaa.gov/products/10cm-flux-30-day.json"
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=10) as response:
-        data = json.loads(response.read().decode("utf-8"))
-        # Strip header row, parse latest numerical SFI
-        rows = [r for r in data if len(r) > 1 and str(r[1]).replace(".", "", 1).isdigit()]
-        if rows:
-            sfi = round(float(rows[-1][1]))
+    req = urllib.request.Request(url, headers={"User-Agent": "WRL-QRZ-Widget/1.0"})
+    with urllib.request.urlopen(req, timeout=12) as response:
+        raw_data = json.loads(response.read().decode("utf-8"))
+        # Header is ["time_tag", "flux"]
+        valid_rows = [r for r in raw_data if len(r) > 1 and r[1] not in ["flux", "Flux", None, ""]]
+        if valid_rows:
+            latest_sfi_entry = valid_rows[-1]
+            sfi = round(float(latest_sfi_entry[1]))
+            print(f"[NOAA LIVE] Observed SFI: {sfi} at {latest_sfi_entry[0]}")
 except Exception as e:
-    print(f"SFI fetch warning: {e}", file=sys.stderr)
+    print(f"[ERROR] SFI fetch failed: {e}", file=sys.stderr)
+
+if sfi is None:
+    sfi = 145
+    print("[WARN] Using fallback SFI = 145")
 
 # 3. Derive Indices & Status
 a_val = round((kp ** 1.8) * 1.5)
@@ -133,4 +146,4 @@ output_html = (
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(output_html)
 
-print(f"Successfully generated index.html: SFI={sfi}, Kp={kp}, Ap={a_val}")
+print(f"[SUCCESS] index.html updated: SFI={sfi}, Kp={kp:.1f}, Ap={a_val} at {now_str}")
