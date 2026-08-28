@@ -18,83 +18,92 @@ jobs:
 
       - name: Fetch NOAA Data and Generate index.html
         run: |
-          KP_JSON=$(curl -s "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json")
-          KP=$(echo "$KP_JSON" | grep -E '\["[0-9]' | tail -n 1 | awk -F',' '{gsub(/[^0-9.]/, "", $2); print $2}')
-          if [ -z "$KP" ]; then KP="2.0"; fi
+          python3 -c '
+          import urllib.request, json, datetime
 
-          SFI_JSON=$(curl -s "https://services.swpc.noaa.gov/products/10cm-flux-30-day.json")
-          SFI=$(echo "$SFI_JSON" | grep -E '\["[0-9]' | tail -n 1 | awk -F',' '{gsub(/[^0-9.]/, "", $2); print int($2)}')
-          if [ -z "$SFI" ]; then SFI="145"; fi
+          # 1. Fetch Planetary K-Index
+          kp = 2.0
+          try:
+              req = urllib.request.urlopen("https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json", timeout=10)
+              data = json.loads(req.read().decode("utf-8"))
+              rows = [r for r in data if len(r) > 1 and r[1] not in ["Kp", "kp", ""]]
+              if rows:
+                  kp = float(rows[-1][1])
+          except Exception as e:
+              print("Kp fallback used:", e)
 
-          python3 - << 'EOF'
-import os, datetime
+          # 2. Fetch 10.7cm Solar Flux
+          sfi = 145
+          try:
+              req = urllib.request.urlopen("https://services.swpc.noaa.gov/products/10cm-flux-30-day.json", timeout=10)
+              data = json.loads(req.read().decode("utf-8"))
+              rows = [r for r in data if len(r) > 1 and r[1] not in ["flux", "Flux", ""]]
+              if rows:
+                  sfi = round(float(rows[-1][1]))
+          except Exception as e:
+              print("SFI fallback used:", e)
 
-kp = float(os.environ.get("KP", "2.0"))
-sfi = int(os.environ.get("SFI", "145"))
+          # 3. Derive Indices
+          a_val = round((kp ** 1.8) * 1.5)
+          if kp >= 5:
+              geo_val, geo_color, geo_sub = "Storm (G1+)", "#b91c1c", f"Kp = {kp:.1f}"
+              k_color, k_sub = "#b91c1c", "Storm Level"
+          elif kp >= 4:
+              geo_val, geo_color, geo_sub = "Unsettled", "#b45309", f"Kp = {kp:.1f}"
+              k_color, k_sub = "#b45309", "Unsettled"
+          elif kp >= 3:
+              geo_val, geo_color, geo_sub = "Active", "#b45309", f"Kp = {kp:.1f}"
+              k_color, k_sub = "#b45309", "Active"
+          else:
+              geo_val, geo_color, geo_sub = "Quiet", "#15803d", f"Kp = {kp:.1f}"
+              k_color, k_sub = "#15803d", "Calm Geomagnetic"
 
-a_val = round((kp ** 1.8) * 1.5)
-if kp >= 5:
-    geo_val, geo_color, geo_sub = "Storm (G1+)", "#b91c1c", f"Kp = {kp:.1f}"
-    k_color, k_sub = "#b91c1c", "Storm Level"
-elif kp >= 4:
-    geo_val, geo_color, geo_sub = "Unsettled", "#b45309", f"Kp = {kp:.1f}"
-    k_color, k_sub = "#b45309", "Unsettled"
-elif kp >= 3:
-    geo_val, geo_color, geo_sub = "Active", "#b45309", f"Kp = {kp:.1f}"
-    k_color, k_sub = "#b45309", "Active"
-else:
-    geo_val, geo_color, geo_sub = "Quiet", "#15803d", f"Kp = {kp:.1f}"
-    k_color, k_sub = "#15803d", "Calm Geomagnetic"
+          sfi_sub = "<span style=\"color:#15803d\">High Ionization</span>" if sfi >= 130 else ("<span style=\"color:#b45309\">Moderate</span>" if sfi >= 90 else "<span style=\"color:#b91c1c\">Low</span>")
+          a_sub = "Low Absorption" if a_val < 10 else ("Moderate" if a_val < 20 else "High Absorption")
 
-sfi_sub = '<span style="color:#15803d">High Ionization</span>' if sfi >= 130 else ('<span style="color:#b45309">Moderate</span>' if sfi >= 90 else '<span style="color:#b91c1c">Low</span>')
-a_sub = "Low Absorption" if a_val < 10 else ("Moderate" if a_val < 20 else "High Absorption")
+          def get_rating(band, is_day):
+              if kp >= 5: return "poor"
+              if band in ["80m", "40m"]:
+                  return ("poor" if kp >= 3 else "fair") if is_day else ("good" if kp <= 3 else "fair")
+              if band in ["30m", "20m"]:
+                  if kp >= 4: return "poor"
+                  return "good" if sfi >= 90 else "fair"
+              if band in ["17m", "15m"]:
+                  if not is_day: return "poor"
+                  return "good" if (sfi >= 120 and kp <= 3) else ("fair" if sfi >= 90 else "poor")
+              if band in ["12m", "10m"]:
+                  if not is_day: return "poor"
+                  return "good" if (sfi >= 140 and kp <= 3) else ("fair" if sfi >= 105 and kp <= 4 else "poor")
+              return "fair"
 
-def get_rating(band, is_day):
-    if kp >= 5: return "poor"
-    if band in ["80m", "40m"]:
-        return ("poor" if kp >= 3 else "fair") if is_day else ("good" if kp <= 3 else "fair")
-    if band in ["30m", "20m"]:
-        if kp >= 4: return "poor"
-        return "good" if sfi >= 90 else "fair"
-    if band in ["17m", "15m"]:
-        if not is_day: return "poor"
-        return "good" if (sfi >= 120 and kp <= 3) else ("fair" if sfi >= 90 else "poor")
-    if band in ["12m", "10m"]:
-        if not is_day: return "poor"
-        return "good" if (sfi >= 140 and kp <= 3) else ("fair" if sfi >= 105 and kp <= 4 else "poor")
-    return "fair"
+          bands = ["80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m"]
+          rows = ""
+          for b in bands:
+              d_rate = get_rating(b, True)
+              n_rate = get_rating(b, False)
+              rows += f"        <tr><td style=\"font-weight:600; color:var(--text-main);\">{b}</td><td><span class=\"pill pill-{d_rate}\">{d_rate.title()}</span></td><td><span class=\"pill pill-{n_rate}\">{n_rate.title()}</span></td></tr>\n"
 
-bands = ["80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m"]
-rows = ""
-for b in bands:
-    d_rate = get_rating(b, True)
-    n_rate = get_rating(b, False)
-    rows += f'        <tr><td style="font-weight:600; color:var(--text-main);">{b}</td><td><span class="pill pill-{d_rate}">{d_rate.title()}</span></td><td><span class="pill pill-{n_rate}">{n_rate.title()}</span></td></tr>\n'
+          now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
 
-now_str = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M UTC")
+          with open("template.html", "r") as f:
+              content = f.read()
 
-with open("template.html", "r") as f:
-    content = f.read()
+          content = content.replace("{{SFI_VAL}}", str(sfi))
+          content = content.replace("{{SFI_SUB}}", sfi_sub)
+          content = content.replace("{{K_VAL}}", f"{kp:.1f}")
+          content = content.replace("{{K_COLOR}}", k_color)
+          content = content.replace("{{K_SUB}}", k_sub)
+          content = content.replace("{{A_VAL}}", str(a_val))
+          content = content.replace("{{A_SUB}}", a_sub)
+          content = content.replace("{{GEO_VAL}}", geo_val)
+          content = content.replace("{{GEO_COLOR}}", geo_color)
+          content = content.replace("{{GEO_SUB}}", geo_sub)
+          content = content.replace("{{TABLE_ROWS}}", rows.rstrip())
+          content = content.replace("{{LAST_UPDATED}}", now_str)
 
-content = content.replace("{{SFI_VAL}}", str(sfi))
-content = content.replace("{{SFI_SUB}}", sfi_sub)
-content = content.replace("{{K_VAL}}", f"{kp:.1f}")
-content = content.replace("{{K_COLOR}}", k_color)
-content = content.replace("{{K_SUB}}", k_sub)
-content = content.replace("{{A_VAL}}", str(a_val))
-content = content.replace("{{A_SUB}}", a_sub)
-content = content.replace("{{GEO_VAL}}", geo_val)
-content = content.replace("{{GEO_COLOR}}", geo_color)
-content = content.replace("{{GEO_SUB}}", geo_sub)
-content = content.replace("{{TABLE_ROWS}}", rows.rstrip())
-content = content.replace("{{LAST_UPDATED}}", now_str)
-
-with open("index.html", "w") as f:
-    f.write(content)
-EOF
-        env:
-          KP: ${{ steps.parse.outputs.kp }}
-          SFI: ${{ steps.parse.outputs.sfi }}
+          with open("index.html", "w") as f:
+              f.write(content)
+          '
 
       - name: Commit and Push Updated index.html
         run: |
